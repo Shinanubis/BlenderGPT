@@ -1,83 +1,134 @@
 import bpy
-import openai
 import re
 import os
 import sys
+from openai import OpenAI
 
 
-def get_api_key(context, addon_name):
-    preferences = context.preferences
-    addon_prefs = preferences.addons[addon_name].preferences
-    return addon_prefs.api_key
+# ==============================================================
+# Utility functions for BlenderGPT
+# ==============================================================
+
+def get_openai_credentials():
+    """Retrieve OpenAI credentials (API key, project, organization) from addon preferences"""
+    try:
+        prefs = bpy.context.preferences.addons["BlenderGPT-main"].preferences
+        api_key = prefs.api_key.strip()
+        project = prefs.project_id.strip()
+        org = prefs.organization_id.strip()
+
+        if not api_key or not project:
+            print("⚠️ Warning: Missing OpenAI API key or Project ID in addon preferences.")
+        return api_key, project, org
+    except Exception:
+        print("⚠️ Could not read OpenAI credentials from addon preferences.")
+        return "", "", ""
 
 
 def init_props():
+    """Initialize Blender properties for GPT integration"""
     bpy.types.Scene.gpt4_chat_history = bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
     bpy.types.Scene.gpt4_model = bpy.props.EnumProperty(
-    name="GPT Model",
-    description="Select the GPT model to use",
-    items=[
-        ("gpt-4", "GPT-4 (powerful, expensive)", "Use GPT-4"),
-        ("gpt-3.5-turbo", "GPT-3.5 Turbo (less powerful, cheaper)", "Use GPT-3.5 Turbo"),
-    ],
-    default="gpt-4",
-)
+        name="GPT Model",
+        description="Select which GPT model to use",
+        items=[
+            ("gpt-4o-mini", "GPT-4o-mini (fast)", "Use GPT-4o-mini"),
+            ("gpt-4o", "GPT-4o (standard)", "Use GPT-4o"),
+            ("gpt-3.5-turbo", "GPT-3.5 Turbo", "Use GPT-3.5 Turbo"),
+        ],
+        default="gpt-4o-mini",
+    )
     bpy.types.Scene.gpt4_chat_input = bpy.props.StringProperty(
         name="Message",
-        description="Enter your message",
+        description="Enter your message to GPT",
         default="",
     )
     bpy.types.Scene.gpt4_button_pressed = bpy.props.BoolProperty(default=False)
     bpy.types.PropertyGroup.type = bpy.props.StringProperty()
     bpy.types.PropertyGroup.content = bpy.props.StringProperty()
 
+
 def clear_props():
+    """Remove GPT-related properties from the scene"""
     del bpy.types.Scene.gpt4_chat_history
     del bpy.types.Scene.gpt4_chat_input
     del bpy.types.Scene.gpt4_button_pressed
 
+
+# ==============================================================
+# OpenAI Integration
+# ==============================================================
+
 def generate_blender_code(prompt, chat_history, context, system_prompt):
+    """Generate Python code for Blender using OpenAI GPT"""
+
+    # --- Retrieve OpenAI credentials from addon preferences ---
+    OPENAI_API_KEY, OPENAI_PROJECT, OPENAI_ORGANIZATION = get_openai_credentials()
+
+    if not OPENAI_API_KEY or not OPENAI_PROJECT:
+        print("❌ Cannot send request: missing API key or project ID.")
+        return None
+
+    # --- Initialize the OpenAI client ---
+    try:
+        client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            project=OPENAI_PROJECT,
+            organization=OPENAI_ORGANIZATION if OPENAI_ORGANIZATION else None
+        )
+        print(f"🔑 Connected to OpenAI Project: {OPENAI_PROJECT}")
+    except Exception as e:
+        print(f"❌ OpenAI initialization error: {e}")
+        return None
+
+    # --- Build the chat history ---
     messages = [{"role": "system", "content": system_prompt}]
     for message in chat_history[-10:]:
         if message.type == "assistant":
-            messages.append({"role": "assistant", "content": "```\n" + message.content + "\n```"})
+            messages.append({"role": "assistant", "content": f"```\n{message.content}\n```"})
         else:
             messages.append({"role": message.type.lower(), "content": message.content})
 
-    # Add the current user message
-    messages.append({"role": "user", "content": "Can you please write Blender code for me that accomplishes the following task: " + prompt + "? \n. Do not respond with anything that is not Python code. Do not provide explanations"})
+    # Add the user prompt
+    messages.append({
+        "role": "user",
+        "content": (
+            "Please write valid Blender Python code to perform the following task: "
+            + prompt
+            + "?\nOnly return Python code inside triple backticks, no explanations."
+        )
+    })
 
-
-    response = openai.ChatCompletion.create(
-        model=context.scene.gpt4_model,
-        messages=messages,
-        stream=True,
-        max_tokens=1500,
-    )
-
+    # --- Send request to OpenAI ---
     try:
-        collected_events = []
-        completion_text = ''
-        # iterate through the stream of events
-        for event in response:
-            if 'role' in event['choices'][0]['delta']:
-                # skip
-                continue
-            if len(event['choices'][0]['delta']) == 0:
-                # skip
-                continue
-            collected_events.append(event)  # save the event response
-            event_text = event['choices'][0]['delta']['content']
-            completion_text += event_text  # append the text
-            print(completion_text, flush=True, end='\r')
-        completion_text = re.findall(r'```(.*?)```', completion_text, re.DOTALL)[0]
-        completion_text = re.sub(r'^python', '', completion_text, flags=re.MULTILINE)
-        
-        return completion_text
-    except IndexError:
+        response = client.chat.completions.create(
+            model=context.scene.gpt4_model,
+            messages=messages,
+        )
+
+        completion_text = response.choices[0].message.content
+        code_blocks = re.findall(r'```(.*?)```', completion_text, re.DOTALL)
+
+        if not code_blocks:
+            print("⚠️ No code block detected in the GPT response.")
+            return None
+
+        # Clean up the code (remove `python` syntax hints, extra spaces, etc.)
+        completion_text = re.sub(r'^python', '', code_blocks[0], flags=re.MULTILINE)
+        print("✅ Blender code successfully generated by GPT.")
+        return completion_text.strip()
+
+    except Exception as e:
+        print(f"❌ OpenAI request failed: {e}")
         return None
 
+
+# ==============================================================
+# Blender UI Helper
+# ==============================================================
+
 def split_area_to_text_editor(context):
+    """Open a new Text Editor area in Blender and display the generated script"""
     area = context.area
     for region in area.regions:
         if region.type == 'WINDOW':
