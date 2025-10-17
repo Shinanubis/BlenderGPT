@@ -207,5 +207,63 @@ class GPT4AddonPreferences(bpy.types.AddonPreferences):
 class GPT4_PT_Panel(bpy.types.Panel):
     bl_label = "GPT-4 Blender Assistant"
     bl_idname = "GPT4_PT_Panel"
-    bl_space_type = 'VIEW_3D_
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'GPT-4 Assistant'
 
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+
+        col.label(text="Chat history:")
+        box = col.box()
+        for i, msg in enumerate(context.scene.gpt4_chat_history):
+            row = box.row()
+            if msg.type == 'assistant':
+                row.label(text="Assistant:")
+                op = row.operator("gpt4.show_code", text="Show Code")
+                op.code = msg.content
+            else:
+                row.label(text=f"User: {msg.content}")
+            del_op = row.operator("gpt4.delete_message", text="", icon="TRASH", emboss=False)
+            del_op.message_index = i
+
+        col.separator()
+        col.label(text="Model:")
+        col.prop(context.scene, "gpt4_model", text="")
+        col.label(text="Your message:")
+        col.prop(context.scene, "gpt4_chat_input", text="")
+        row = col.row(align=True)
+        row.operator("gpt4.send_message", text="Execute")
+        row.operator("gpt4.clear_chat", text="Clear Chat")
+
+
+# ==============================================================
+# Register / Unregister
+# ==============================================================
+def register():
+    bpy.utils.register_class(GPT4AddonPreferences)
+    bpy.utils.register_class(GPT4_OT_Execute)
+    bpy.utils.register_class(GPT4_PT_Panel)
+    bpy.utils.register_class(GPT4_OT_ClearChat)
+    bpy.utils.register_class(GPT4_OT_ShowCode)
+    bpy.utils.register_class(GPT4_OT_DeleteMessage)
+    bpy.utils.register_class(GPT4_OT_TestConnection)
+    bpy.types.VIEW3D_MT_mesh_add.append(lambda s, c: s.layout.operator(GPT4_OT_Execute.bl_idname))
+    init_props()
+
+
+def unregister():
+    bpy.utils.unregister_class(GPT4AddonPreferences)
+    bpy.utils.unregister_class(GPT4_OT_Execute)
+    bpy.utils.unregister_class(GPT4_PT_Panel)
+    bpy.utils.unregister_class(GPT4_OT_ClearChat)
+    bpy.utils.unregister_class(GPT4_OT_ShowCode)
+    bpy.utils.unregister_class(GPT4_OT_DeleteMessage)
+    bpy.utils.unregister_class(GPT4_OT_TestConnection)
+    bpy.types.VIEW3D_MT_mesh_add.remove(lambda s, c: s.layout.operator(GPT4_OT_Execute.bl_idname))
+    clear_props()
+
+
+if __name__ == "__main__":
+    register()
