@@ -178,7 +178,6 @@ class GPT4AddonPreferences(bpy.types.AddonPreferences):
         name="OpenAI API Key",
         description="Your OpenAI API key (starts with sk-proj-...)",
         default="",
-        subtype="PASSWORD",
     )
     project_id: bpy.props.StringProperty(
         name="Project ID",
