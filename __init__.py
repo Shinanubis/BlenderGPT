@@ -26,7 +26,7 @@ bl_info = {
     "name": "GPT-4 Blender Assistant",
     "blender": (2, 82, 0),
     "category": "Object",
-    "author": "Aarya (@gd3kr) + ChatGPT integration by Eric Maginot",
+    "author": "Aarya (@gd3kr) and @Shinanubis for adding new OpenAi Api support",
     "version": (3, 3, 0),
     "location": "3D View > UI > GPT-4 Assistant",
     "description": "Generate Blender Python code using OpenAI GPT models.",
