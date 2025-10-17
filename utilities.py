@@ -109,3 +109,4 @@ def split_area_to_text_editor(context):
     new_area = context.screen.areas[-1]
     new_area.type = 'TEXT_EDITOR'
     return new_area
+

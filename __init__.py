@@ -208,3 +208,4 @@ class GPT4_PT_Panel(bpy.types.Panel):
     bl_label = "GPT-4 Blender Assistant"
     bl_idname = "GPT4_PT_Panel"
     bl_space_type = 'VIEW_3D_
+
