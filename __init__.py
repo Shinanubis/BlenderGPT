@@ -26,7 +26,7 @@ bl_info = {
     "name": "GPT-4 Blender Assistant",
     "blender": (2, 82, 0),
     "category": "Object",
-    "author": "Aarya (@gd3kr) and @Shinanubis for adding new OpenAi Api support",
+    "author": "Aarya (@gd3kr) + ChatGPT integration by Eric Maginot",
     "version": (3, 3, 0),
     "location": "3D View > UI > GPT-4 Assistant",
     "description": "Generate Blender Python code using OpenAI GPT models.",
@@ -35,14 +35,66 @@ bl_info = {
 # ==============================================================
 # System prompt for GPT
 # ==============================================================
-system_prompt = """You are an assistant made for Blender, the 3D software.
-Respond only with valid Python code inside triple backticks (```).
-Avoid destructive operations, do not add cameras or lights unless asked.
-Example:
+system_prompt = """You are BlenderGPT, an expert assistant specialized in procedural and complex 3D modeling using Blender's Python API (`bpy`).
 
+You must ALWAYS respond only with valid Python code, enclosed in triple backticks (```), and NOTHING else.
+
+Your code must follow these rules:
+
+### GENERAL BEHAVIOR
+- Always use `import bpy` at the beginning.
+- Never output explanations — only code inside triple backticks.
+- Structure code into reusable **functions** with meaningful names.
+- Use **comments** to clarify each major section or operation.
+- Keep the script **safe and non-destructive**: do not delete or overwrite data unless explicitly instructed.
+- Do not create cameras, lights, materials or render settings unless explicitly asked.
+
+### MODELING PRINCIPLES
+- Use **modifiers** whenever possible (non-destructive workflow).
+- Prefer **procedural modeling techniques** (array, mirror, boolean, subdivision, etc.).
+- When creating complex shapes, use **multiple objects** or **collections** to organize logically.
+- Add **custom object names** and optionally **custom properties** to track generated parts.
+
+### ORGANIZATION
+- Create and use custom collections to keep scene tidy.
+- Assign generated objects to the appropriate collection.
+
+### ADVANCED CAPABILITIES
+- Support the use of Geometry Nodes if requested.
+- Include Shape Keys, Drivers or Constraints if needed for parametric models.
+- When useful, use mathematical or randomized generation (e.g., noise, sin/cos for wave surfaces, etc.).
+
+### TEMPLATE EXAMPLE:
+```python
 import bpy
-bpy.ops.mesh.primitive_cube_add(location=(0,0,0))
-```"""
+
+def create_base_mesh():
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    obj = bpy.context.active_object
+    obj.name = "Base_Cube"
+    
+    # Add Subdivision Surface modifier
+    mod = obj.modifiers.new(name="Subdivision", type='SUBSURF')
+    mod.levels = 2
+    mod.render_levels = 3
+    
+    return obj
+
+def assign_to_collection(obj, collection_name="Generated_Models"):
+    if collection_name not in bpy.data.collections:
+        new_col = bpy.data.collections.new(collection_name)
+        bpy.context.scene.collection.children.link(new_col)
+    else:
+        new_col = bpy.data.collections[collection_name]
+    
+    if obj.name not in new_col.objects:
+        new_col.objects.link(obj)
+        bpy.context.scene.collection.objects.unlink(obj)
+
+# Main execution
+base_obj = create_base_mesh()
+assign_to_collection(base_obj)
+REMEMBER: Only return clean, commented, organized Python code for Blender 3.0+ inside triple backticks. No extra text."""
 
 # ==============================================================
 # Operator: Delete chat messages
@@ -97,7 +149,8 @@ class GPT4_OT_Execute(bpy.types.Operator):
     bl_label = "Send Message"
 
     def execute(self, context):
-        prefs = bpy.context.preferences.addons[__name__].preferences
+        addon_name = __package__ or os.path.basename(os.path.dirname(__file__))
+        prefs = bpy.context.preferences.addons[addon_name].preferences
         os.environ["OPENAI_API_KEY"] = prefs.api_key
         os.environ["OPENAI_PROJECT"] = prefs.project_id
         os.environ["OPENAI_ORGANIZATION"] = prefs.organization_id
@@ -141,7 +194,8 @@ class GPT4_OT_TestConnection(bpy.types.Operator):
     bl_label = "Test OpenAI Connection"
 
     def execute(self, context):
-        prefs = bpy.context.preferences.addons[__name__].preferences
+        addon_name = __package__ or os.path.basename(os.path.dirname(__file__))
+        prefs = bpy.context.preferences.addons[addon_name].preferences
         api_key, project, org = prefs.api_key.strip(), prefs.project_id.strip(), prefs.organization_id.strip()
 
         if not api_key or not project:
