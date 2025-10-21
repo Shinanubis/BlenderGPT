@@ -21,7 +21,7 @@ Access to GPT-4 in this addon can ONLY be obtained through the OpenAI waitlist (
 2. Open Blender, go to `Edit > Preferences > Add-ons > Install`
 3. Select the downloaded ZIP file and click `Install Add-on`
 4. Enable the add-on by checking the checkbox next to `GPT-4 Blender Assistant`
-5. Paste your OpenAI API key in the Addon preferences menu.
+5. Paste your OpenAI API key, your OpenAI Project key and your OpenAI Organization key in the Addon preferences menu.
 5. To view the code generations in realtime, go to `Window > Toggle System Console`
 
 ## Usage
